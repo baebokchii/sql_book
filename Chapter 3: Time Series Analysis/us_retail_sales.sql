@@ -1,5 +1,6 @@
 -- Trending the data
 -- Simple trends
+
 SELECT
   sales_month,
   sales
@@ -225,6 +226,7 @@ ORDER BY
   sales_year;
 
 -- Percent of total calculations
+
 SELECT
   sales_month,
   kind_of_business,
@@ -431,8 +433,9 @@ ORDER BY
   sales_year,
   kind_of_business;
 
-------- Rolling time windows
+-- Rolling time windows
 -- Calculating rolling time windows
+
 SELECT
   a.sales_month,
   a.sales,
@@ -486,6 +489,7 @@ ORDER BY
   sales_month;
 
 -- Rolling time windows with sparse data
+
 SELECT
   a.date,
   b.sales_month,
@@ -553,6 +557,7 @@ ORDER BY
   a.sales_month;
 
 -- Calculating cumulative values
+
 SELECT
   sales_month,
   sales,
@@ -586,8 +591,9 @@ GROUP BY
 ORDER BY
   a.sales_month;
 
-------- Analyzing with seasonality
+-- Analyzing with seasonality
 -- Period over period comparisons
+
 SELECT
   kind_of_business,
   sales_month,
@@ -659,6 +665,7 @@ ORDER BY
   sales_year;
 
 -- Period over period comparisons - Same month vs. last year
+
 SELECT
   sales_month,
   MONTH(sales_month) AS month_number
@@ -745,6 +752,7 @@ ORDER BY
   month_number;
 
 -- Comparing to multiple prior periods
+
 SELECT
   sales_month,
   sales,
