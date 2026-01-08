@@ -1,3 +1,4 @@
+-- Active: 1767840625700@@127.0.0.1@3306@sql_for_data_analysis
 -- Trending the data
 -- Simple trends
 
@@ -5,7 +6,7 @@ SELECT
   sales_month,
   sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Retail and food services sales, total'
 ORDER BY
@@ -15,7 +16,7 @@ SELECT
   YEAR(sales_month) AS sales_year,
   SUM(sales) AS sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Retail and food services sales, total'
 GROUP BY
@@ -29,7 +30,7 @@ SELECT
   kind_of_business,
   SUM(sales) AS sales
 FROM
-  retail_sales
+ us_retail_sales
 WHERE
   kind_of_business IN (
     'Book stores',
@@ -48,7 +49,7 @@ SELECT
   kind_of_business,
   sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -63,7 +64,7 @@ SELECT
   kind_of_business,
   SUM(sales) AS sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -88,7 +89,7 @@ SELECT
     END
   ) AS mens_sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -120,7 +121,7 @@ FROM
         END
       ) AS mens_sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business IN (
         'Men''s clothing stores',
@@ -147,7 +148,7 @@ SELECT
     END
   ) AS womens_minus_mens
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -179,7 +180,7 @@ FROM
         END
       ) AS mens_sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business IN (
         'Men''s clothing stores',
@@ -212,7 +213,7 @@ FROM
         END
       ) AS mens_sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business IN (
         'Men''s clothing stores',
@@ -226,7 +227,7 @@ ORDER BY
   sales_year;
 
 -- Percent of total calculations
-
+-- Self-joins
 SELECT
   sales_month,
   kind_of_business,
@@ -239,8 +240,8 @@ FROM
       a.sales,
       SUM(b.sales) AS total_sales
     FROM
-      retail_sales a
-      JOIN retail_sales b ON a.sales_month = b.sales_month
+      us_retail_sales a
+      JOIN us_retail_sales b ON a.sales_month = b.sales_month
       AND b.kind_of_business IN (
         'Men''s clothing stores',
         'Women''s clothing stores'
@@ -259,6 +260,7 @@ ORDER BY
   sales_month,
   kind_of_business;
 
+-- Window functions
 SELECT
   sales_month,
   kind_of_business,
@@ -272,7 +274,7 @@ SELECT
       sales_month
   ) AS pct_total
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -281,6 +283,7 @@ WHERE
 ORDER BY
   sales_month;
 
+--Self joins for yearly percent of total
 SELECT
   sales_month,
   kind_of_business,
@@ -293,8 +296,8 @@ FROM
       a.sales,
       SUM(b.sales) AS yearly_sales
     FROM
-      retail_sales a
-      JOIN retail_sales b ON YEAR(a.sales_month) = YEAR(b.sales_month)
+      us_retail_sales a
+      JOIN us_retail_sales b ON YEAR(a.sales_month) = YEAR(b.sales_month)
       AND a.kind_of_business = b.kind_of_business
       AND b.kind_of_business IN (
         'Men''s clothing stores',
@@ -314,6 +317,7 @@ ORDER BY
   sales_month,
   kind_of_business;
 
+-- Window functions for yearly percent of total
 SELECT
   sales_month,
   kind_of_business,
@@ -329,7 +333,7 @@ SELECT
       kind_of_business
   ) AS pct_yearly
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business IN (
     'Men''s clothing stores',
@@ -352,7 +356,7 @@ FROM
       YEAR(sales_month) AS sales_year,
       SUM(sales) AS sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business = 'Women''s clothing stores'
     GROUP BY
@@ -370,18 +374,18 @@ FROM
       bb.index_sales,
       SUM(aa.sales) AS sales
     FROM
-      retail_sales aa
+      us_retail_sales aa
       JOIN (
         SELECT
           first_year,
           SUM(a.sales) AS index_sales
         FROM
-          retail_sales a
+          us_retail_sales a
           JOIN (
             SELECT
               MIN(YEAR(sales_month)) AS first_year
             FROM
-              retail_sales
+              us_retail_sales
             WHERE
               kind_of_business = 'Women''s clothing stores'
           ) b ON YEAR(a.sales_month) = b.first_year
@@ -418,7 +422,7 @@ FROM
       kind_of_business,
       SUM(sales) AS sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business IN (
         'Men''s clothing stores',
@@ -442,8 +446,8 @@ SELECT
   b.sales_month AS rolling_sales_month,
   b.sales AS rolling_sales
 FROM
-  retail_sales a
-  JOIN retail_sales b ON a.kind_of_business = b.kind_of_business
+  us_retail_sales a
+  JOIN us_retail_sales b ON a.kind_of_business = b.kind_of_business
   AND b.sales_month BETWEEN DATE_SUB(a.sales_month, INTERVAL 11 MONTH) AND a.sales_month
   AND b.kind_of_business = 'Women''s clothing stores'
 WHERE
@@ -456,8 +460,8 @@ SELECT
   AVG(b.sales) AS moving_avg,
   COUNT(b.sales) AS records_count
 FROM
-  retail_sales a
-  JOIN retail_sales b ON a.kind_of_business = b.kind_of_business
+  us_retail_sales a
+  JOIN us_retail_sales b ON a.kind_of_business = b.kind_of_business
   AND b.sales_month BETWEEN DATE_SUB(a.sales_month, INTERVAL 11 MONTH) AND a.sales_month
   AND b.kind_of_business = 'Women''s clothing stores'
 WHERE
@@ -482,7 +486,7 @@ SELECT
       AND CURRENT ROW
   ) AS records_count
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Women''s clothing stores'
 ORDER BY
@@ -545,11 +549,11 @@ FROM
     SELECT DISTINCT
       sales_month
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       sales_month BETWEEN '1993-01-01' AND '2020-12-01'
   ) a
-  JOIN retail_sales b ON b.sales_month BETWEEN DATE_SUB(a.sales_month, INTERVAL 11 MONTH) AND a.sales_month
+  JOIN us_retail_sales b ON b.sales_month BETWEEN DATE_SUB(a.sales_month, INTERVAL 11 MONTH) AND a.sales_month
   AND b.kind_of_business = 'Women''s clothing stores'
 GROUP BY
   a.sales_month
@@ -568,7 +572,7 @@ SELECT
       sales_month
   ) AS sales_ytd
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Women''s clothing stores'
 ORDER BY
@@ -579,8 +583,8 @@ SELECT
   a.sales,
   SUM(b.sales) AS sales_ytd
 FROM
-  retail_sales a
-  JOIN retail_sales b ON YEAR(a.sales_month) = YEAR(b.sales_month)
+  us_retail_sales a
+  JOIN us_retail_sales b ON YEAR(a.sales_month) = YEAR(b.sales_month)
   AND b.sales_month <= a.sales_month
   AND b.kind_of_business = 'Women''s clothing stores'
 WHERE
@@ -611,7 +615,7 @@ SELECT
       sales_month
   ) AS prev_month_sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -630,7 +634,7 @@ SELECT
     ) - 1
   ) * 100 AS pct_growth_from_previous
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -655,7 +659,7 @@ FROM
       YEAR(sales_month) AS sales_year,
       SUM(sales) AS yearly_sales
     FROM
-      retail_sales
+      us_retail_sales
     WHERE
       kind_of_business = 'Book stores'
     GROUP BY
@@ -670,7 +674,7 @@ SELECT
   sales_month,
   MONTH(sales_month) AS month_number
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -692,7 +696,7 @@ SELECT
       sales_month
   ) AS prev_year_sales
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -716,7 +720,7 @@ SELECT
     ) - 1
   ) * 100 AS pct_diff
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -741,7 +745,7 @@ SELECT
     END
   ) AS sales_1994
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
   AND sales_month BETWEEN '1992-01-01' AND '1994-12-01'
@@ -775,7 +779,7 @@ SELECT
       sales_month
   ) AS prev_sales_3
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
@@ -792,7 +796,7 @@ SELECT
       AND 1 PRECEDING
   ) AS pct_of_prev_3
 FROM
-  retail_sales
+  us_retail_sales
 WHERE
   kind_of_business = 'Book stores'
 ORDER BY
