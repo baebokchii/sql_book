@@ -1,30 +1,23 @@
 -- Active: 1767840625700@@127.0.0.1@3306@sql_for_data_analysis
 -- Basic retention
-SELECT 
-  id_bioguide,
-  min(term_start) as first_term
-FROM 
-  legislators_terms 
-GROUP BY 
-  1
-;
+SELECT id_bioguide,
+        min(term_start) AS first_term
+FROM legislators_terms
+GROUP BY  1 ;
 
-SELECT
-  TIMESTAMPDIFF(YEAR, a.first_term, b.term_start) AS periods,
-  COUNT(DISTINCT a.id_bioguide) AS cohort_retained
-FROM (
-  SELECT
-    id_bioguide,
-    MIN(term_start) AS first_term
-  FROM legislators_terms
-  GROUP BY id_bioguide
-) AS a
+SELECT TIMESTAMPDIFF(YEAR,
+         a.first_term,
+         b.term_start) AS periods,
+         COUNT(DISTINCT a.id_bioguide) AS cohort_retained
+FROM 
+    (SELECT id_bioguide,
+         MIN(term_start) AS first_term
+    FROM legislators_terms
+    GROUP BY  id_bioguide ) AS a
 JOIN legislators_terms AS b
-  ON a.id_bioguide = b.id_bioguide
-GROUP BY
-  1
-ORDER BY
-  periods;
+    ON a.id_bioguide = b.id_bioguide
+GROUP BY  1
+ORDER BY  periods;
 
 SELECT period
 ,first_value(cohort_retained) over (order by period) as cohort_size
