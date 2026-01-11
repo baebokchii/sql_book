@@ -4,21 +4,23 @@ FROM legislators_terms
 GROUP BY
     1;
 
-SELECT
-    date_part (
-        'year',
-        age (b.term_start, a.first_term)
-    ) as periods,
-    count(distinct a.id_bioguide) as cohort_retained
+SELECT TIMESTAMPDIFF(
+        YEAR, a.first_term, b.term_start
+    ) AS periods, COUNT(DISTINCT a.id_bioguide) AS cohort_retained
 FROM (
-        SELECT id_bioguide, min(term_start) as first_term
+        SELECT id_bioguide, MIN(term_start) AS first_term
         FROM legislators_terms
         GROUP BY
-            1
-    ) a
-    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
+            id_bioguide
+    ) AS a
+    JOIN legislators_terms AS b ON a.id_bioguide = b.id_bioguide
 GROUP BY
-    1;
+    TIMESTAMPDIFF(
+        YEAR,
+        a.first_term,
+        b.term_start
+    )
+ORDER BY periods;
 
 SELECT
     period,
