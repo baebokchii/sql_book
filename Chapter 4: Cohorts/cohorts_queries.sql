@@ -854,492 +854,506 @@ GROUP BY
     first_century
 ORDER BY first_century;
 
-WITH RECURSIVE terms AS (
-  SELECT 1 AS terms
-  UNION ALL
-  SELECT terms + 1
-  FROM terms
-  WHERE terms < 20
-),
-base AS (
-  SELECT
-    id_bioguide,
-    CEILING(YEAR(MIN(term_start)) / 100) AS first_century,
-    COUNT(term_start) AS total_terms
-  FROM legislators_terms
-  GROUP BY id_bioguide
-)
+WITH RECURSIVE
+    terms AS (
+        SELECT 1 AS terms
+        UNION ALL
+        SELECT terms + 1
+        FROM terms
+        WHERE
+            terms < 20
+    ),
+    base AS (
+        SELECT
+            id_bioguide,
+            CEILING(YEAR(MIN(term_start)) / 100) AS first_century,
+            COUNT(term_start) AS total_terms
+        FROM legislators_terms
+        GROUP BY
+            id_bioguide
+    )
 SELECT
-  a.first_century,
-  t.terms,
-  COUNT(DISTINCT a.id_bioguide) AS cohort,
-  COUNT(DISTINCT CASE
-    WHEN a.total_terms >= t.terms THEN a.id_bioguide
-  END) AS cohort_survived,
-  COUNT(DISTINCT CASE
-    WHEN a.total_terms >= t.terms THEN a.id_bioguide
-  END) * 1.0
-    / COUNT(DISTINCT a.id_bioguide) AS pct_survived
+    a.first_century,
+    t.terms,
+    COUNT(DISTINCT a.id_bioguide) AS cohort,
+    COUNT(
+        DISTINCT CASE
+            WHEN a.total_terms >= t.terms THEN a.id_bioguide
+        END
+    ) AS cohort_survived,
+    COUNT(
+        DISTINCT CASE
+            WHEN a.total_terms >= t.terms THEN a.id_bioguide
+        END
+    ) * 1.0 / COUNT(DISTINCT a.id_bioguide) AS pct_survived
 FROM base a
-JOIN terms t
-  ON 1 = 1
+    JOIN terms t ON 1 = 1
 GROUP BY
-  a.first_century,
-  t.terms
-ORDER BY
-  a.first_century,
-  t.terms;
+    a.first_century,
+    t.terms
+ORDER BY a.first_century, t.terms;
 
 ----------- Returnship / repeat purchase behavior ----------------------------------
-SELECT
-  CEILING(YEAR(a.first_term) / 100) AS cohort_century,
-  COUNT(a.id_bioguide) AS reps
+SELECT CEILING(YEAR(a.first_term) / 100) AS cohort_century, COUNT(a.id_bioguide) AS reps
 FROM (
-  SELECT
-    id_bioguide,
-    MIN(term_start) AS first_term
-  FROM legislators_terms
-  WHERE term_type = 'rep'
-  GROUP BY id_bioguide
-) a
-GROUP BY CEILING(YEAR(a.first_term) / 100)
+        SELECT id_bioguide, MIN(term_start) AS first_term
+        FROM legislators_terms
+        WHERE
+            term_type = 'rep'
+        GROUP BY
+            id_bioguide
+    ) a
+GROUP BY
+    CEILING(YEAR(a.first_term) / 100)
+ORDER BY cohort_century;
+
+SELECT aa.cohort_century, bb.rep_and_sen * 1.0 / aa.reps AS pct_rep_and_sen
+FROM (
+        SELECT CEILING(YEAR(a.first_term) / 100) AS cohort_century, COUNT(a.id_bioguide) AS reps
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) a
+        GROUP BY
+            CEILING(YEAR(a.first_term) / 100)
+    ) aa
+    LEFT JOIN (
+        SELECT CEILING(YEAR(b.first_term) / 100) AS cohort_century, COUNT(DISTINCT b.id_bioguide) AS rep_and_sen
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) b
+            JOIN legislators_terms c ON b.id_bioguide = c.id_bioguide
+            AND c.term_type = 'sen'
+            AND c.term_start > b.first_term
+        GROUP BY
+            CEILING(YEAR(b.first_term) / 100)
+    ) bb ON aa.cohort_century = bb.cohort_century
+ORDER BY aa.cohort_century;
+
+SELECT aa.cohort_century, bb.rep_and_sen * 1.0 / aa.reps AS pct_10_yrs
+FROM (
+        SELECT CEILING(YEAR(a.first_term) / 100) AS cohort_century, COUNT(a.id_bioguide) AS reps
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) a
+        WHERE
+            a.first_term <= '2009-12-31'
+        GROUP BY
+            CEILING(YEAR(a.first_term) / 100)
+    ) aa
+    LEFT JOIN (
+        SELECT CEILING(YEAR(b.first_term) / 100) AS cohort_century, COUNT(DISTINCT b.id_bioguide) AS rep_and_sen
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) b
+            JOIN legislators_terms c ON b.id_bioguide = c.id_bioguide
+            AND c.term_type = 'sen'
+            AND c.term_start > b.first_term
+        WHERE
+            c.term_start <= DATE_ADD(
+                b.first_term, INTERVAL 10 YEAR
+            )
+        GROUP BY
+            CEILING(YEAR(b.first_term) / 100)
+    ) bb ON aa.cohort_century = bb.cohort_century
 ORDER BY cohort_century;
 
 SELECT
-  aa.cohort_century,
-  bb.rep_and_sen * 1.0 / aa.reps AS pct_rep_and_sen
+    aa.cohort_century AS cohort_century,
+    ROUND(
+        bb.rep_and_sen_5_yrs * 1.0 / aa.reps,
+        4
+    ) AS pct_5_yrs,
+    ROUND(
+        bb.rep_and_sen_10_yrs * 1.0 / aa.reps,
+        4
+    ) AS pct_10_yrs,
+    ROUND(
+        bb.rep_and_sen_15_yrs * 1.0 / aa.reps,
+        4
+    ) AS pct_15_yrs
 FROM (
-  SELECT
-    CEILING(YEAR(a.first_term) / 100) AS cohort_century,
-    COUNT(a.id_bioguide) AS reps
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) a
-  GROUP BY CEILING(YEAR(a.first_term) / 100)
-) aa
-LEFT JOIN (
-  SELECT
-    CEILING(YEAR(b.first_term) / 100) AS cohort_century,
-    COUNT(DISTINCT b.id_bioguide) AS rep_and_sen
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) b
-  JOIN legislators_terms c
-    ON b.id_bioguide = c.id_bioguide
-   AND c.term_type = 'sen'
-   AND c.term_start > b.first_term
-  GROUP BY CEILING(YEAR(b.first_term) / 100)
-) bb
-  ON aa.cohort_century = bb.cohort_century
-ORDER BY aa.cohort_century;
-
-SELECT
-  aa.cohort_century,
-  bb.rep_and_sen * 1.0 / aa.reps AS pct_10_yrs
-FROM (
-  SELECT
-    CEILING(YEAR(a.first_term) / 100) AS cohort_century,
-    COUNT(a.id_bioguide) AS reps
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) a
-  WHERE a.first_term <= '2009-12-31'
-  GROUP BY CEILING(YEAR(a.first_term) / 100)
-) aa
-LEFT JOIN (
-  SELECT
-    CEILING(YEAR(b.first_term) / 100) AS cohort_century,
-    COUNT(DISTINCT b.id_bioguide) AS rep_and_sen
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) b
-  JOIN legislators_terms c
-    ON b.id_bioguide = c.id_bioguide
-   AND c.term_type = 'sen'
-   AND c.term_start > b.first_term
-  WHERE c.term_start <= DATE_ADD(b.first_term, INTERVAL 10 YEAR)
-  GROUP BY CEILING(YEAR(b.first_term) / 100)
-) bb
-  ON aa.cohort_century = bb.cohort_century
-  ORDER BY
-    cohort_century;
-
-SELECT
-  aa.cohort_century AS cohort_century,
-  ROUND(bb.rep_and_sen_5_yrs  * 1.0 / aa.reps, 4) AS pct_5_yrs,
-  ROUND(bb.rep_and_sen_10_yrs * 1.0 / aa.reps, 4) AS pct_10_yrs,
-  ROUND(bb.rep_and_sen_15_yrs * 1.0 / aa.reps, 4) AS pct_15_yrs
-FROM (
-  SELECT
-    CEILING(YEAR(a.first_term) / 100) AS cohort_century,
-    COUNT(a.id_bioguide) AS reps
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) a
-  WHERE a.first_term <= '2009-12-31'
-  GROUP BY CEILING(YEAR(a.first_term) / 100)
-) aa
-LEFT JOIN (
-  SELECT
-    CEILING(YEAR(b.first_term) / 100) AS cohort_century,
-    COUNT(DISTINCT CASE
-      WHEN c.term_start <= DATE_ADD(b.first_term, INTERVAL 5 YEAR)  THEN b.id_bioguide
-    END) AS rep_and_sen_5_yrs,
-    COUNT(DISTINCT CASE
-      WHEN c.term_start <= DATE_ADD(b.first_term, INTERVAL 10 YEAR) THEN b.id_bioguide
-    END) AS rep_and_sen_10_yrs,
-    COUNT(DISTINCT CASE
-      WHEN c.term_start <= DATE_ADD(b.first_term, INTERVAL 15 YEAR) THEN b.id_bioguide
-    END) AS rep_and_sen_15_yrs
-  FROM (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    WHERE term_type = 'rep'
-    GROUP BY id_bioguide
-  ) b
-  JOIN legislators_terms c
-    ON b.id_bioguide = c.id_bioguide
-   AND c.term_type = 'sen'
-   AND c.term_start > b.first_term
-  GROUP BY CEILING(YEAR(b.first_term) / 100)
-) bb
-  ON aa.cohort_century = bb.cohort_century
-  ORDER BY 
-    cohort_century;
+        SELECT CEILING(YEAR(a.first_term) / 100) AS cohort_century, COUNT(a.id_bioguide) AS reps
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) a
+        WHERE
+            a.first_term <= '2009-12-31'
+        GROUP BY
+            CEILING(YEAR(a.first_term) / 100)
+    ) aa
+    LEFT JOIN (
+        SELECT
+            CEILING(YEAR(b.first_term) / 100) AS cohort_century, COUNT(
+                DISTINCT CASE
+                    WHEN c.term_start <= DATE_ADD(b.first_term, INTERVAL 5 YEAR) THEN b.id_bioguide
+                END
+            ) AS rep_and_sen_5_yrs, COUNT(
+                DISTINCT CASE
+                    WHEN c.term_start <= DATE_ADD(
+                        b.first_term, INTERVAL 10 YEAR
+                    ) THEN b.id_bioguide
+                END
+            ) AS rep_and_sen_10_yrs, COUNT(
+                DISTINCT CASE
+                    WHEN c.term_start <= DATE_ADD(
+                        b.first_term, INTERVAL 15 YEAR
+                    ) THEN b.id_bioguide
+                END
+            ) AS rep_and_sen_15_yrs
+        FROM (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                WHERE
+                    term_type = 'rep'
+                GROUP BY
+                    id_bioguide
+            ) b
+            JOIN legislators_terms c ON b.id_bioguide = c.id_bioguide
+            AND c.term_type = 'sen'
+            AND c.term_start > b.first_term
+        GROUP BY
+            CEILING(YEAR(b.first_term) / 100)
+    ) bb ON aa.cohort_century = bb.cohort_century
+ORDER BY cohort_century;
 
 ----------- Cumulative calculations ----------------------------------
-SELECT
-  CEILING(YEAR(a.first_term) / 100) AS century,
-  a.first_type,
-  COUNT(DISTINCT a.id_bioguide) AS cohort,
-  COUNT(b.term_start) AS terms
+SELECT CEILING(YEAR(a.first_term) / 100) AS century, a.first_type, COUNT(DISTINCT a.id_bioguide) AS cohort, COUNT(b.term_start) AS terms
 FROM (
-  SELECT DISTINCT
-    id_bioguide,
-    FIRST_VALUE(term_type) OVER (
-      PARTITION BY id_bioguide
-      ORDER BY term_start
-    ) AS first_type,
-    MIN(term_start) OVER (
-      PARTITION BY id_bioguide
-    ) AS first_term,
-    DATE_ADD(
-      MIN(term_start) OVER (PARTITION BY id_bioguide),
-      INTERVAL 10 YEAR
-    ) AS first_plus_10
-  FROM legislators_terms
-) a
-LEFT JOIN legislators_terms b
-  ON a.id_bioguide = b.id_bioguide
- AND b.term_start BETWEEN a.first_term AND a.first_plus_10
+        SELECT DISTINCT
+            id_bioguide, FIRST_VALUE(term_type) OVER (
+                PARTITION BY
+                    id_bioguide
+                ORDER BY term_start
+            ) AS first_type, MIN(term_start) OVER (
+                PARTITION BY
+                    id_bioguide
+            ) AS first_term, DATE_ADD(
+                MIN(term_start) OVER (
+                    PARTITION BY
+                        id_bioguide
+                ), INTERVAL 10 YEAR
+            ) AS first_plus_10
+        FROM legislators_terms
+    ) a
+    LEFT JOIN legislators_terms b ON a.id_bioguide = b.id_bioguide
+    AND b.term_start BETWEEN a.first_term AND a.first_plus_10
 GROUP BY
-  CEILING(YEAR(a.first_term) / 100),
-  a.first_type
-ORDER BY
-  century,
-  a.first_type;
-
-SELECT
-  century,
-  MAX(CASE WHEN first_type = 'rep' THEN cohort END) AS rep_cohort,
-  MAX(CASE WHEN first_type = 'rep' THEN terms_per_leg END) AS avg_rep_terms,
-  MAX(CASE WHEN first_type = 'sen' THEN cohort END) AS sen_cohort,
-  MAX(CASE WHEN first_type = 'sen' THEN terms_per_leg END) AS avg_sen_terms
-FROM (
-  SELECT
-    CEILING(YEAR(a.first_term) / 100) AS century,
-    a.first_type,
-    COUNT(DISTINCT a.id_bioguide) AS cohort,
-    COUNT(b.term_start) AS terms,
-    COUNT(b.term_start) * 1.0 / COUNT(DISTINCT a.id_bioguide) AS terms_per_leg
-  FROM (
-    SELECT DISTINCT
-      id_bioguide,
-      FIRST_VALUE(term_type) OVER (
-        PARTITION BY id_bioguide
-        ORDER BY term_start
-      ) AS first_type,
-      MIN(term_start) OVER (
-        PARTITION BY id_bioguide
-      ) AS first_term,
-      DATE_ADD(
-        MIN(term_start) OVER (PARTITION BY id_bioguide),
-        INTERVAL 10 YEAR
-      ) AS first_plus_10
-    FROM legislators_terms
-  ) a
-  LEFT JOIN legislators_terms b
-    ON a.id_bioguide = b.id_bioguide
-   AND b.term_start BETWEEN a.first_term AND a.first_plus_10
-  GROUP BY
     CEILING(YEAR(a.first_term) / 100),
     a.first_type
-) aa
-GROUP BY century
+ORDER BY century, a.first_type;
+
+SELECT
+    century,
+    MAX(
+        CASE
+            WHEN first_type = 'rep' THEN cohort
+        END
+    ) AS rep_cohort,
+    MAX(
+        CASE
+            WHEN first_type = 'rep' THEN terms_per_leg
+        END
+    ) AS avg_rep_terms,
+    MAX(
+        CASE
+            WHEN first_type = 'sen' THEN cohort
+        END
+    ) AS sen_cohort,
+    MAX(
+        CASE
+            WHEN first_type = 'sen' THEN terms_per_leg
+        END
+    ) AS avg_sen_terms
+FROM (
+        SELECT
+            CEILING(YEAR(a.first_term) / 100) AS century, a.first_type, COUNT(DISTINCT a.id_bioguide) AS cohort, COUNT(b.term_start) AS terms, COUNT(b.term_start) * 1.0 / COUNT(DISTINCT a.id_bioguide) AS terms_per_leg
+        FROM (
+                SELECT DISTINCT
+                    id_bioguide, FIRST_VALUE(term_type) OVER (
+                        PARTITION BY
+                            id_bioguide
+                        ORDER BY term_start
+                    ) AS first_type, MIN(term_start) OVER (
+                        PARTITION BY
+                            id_bioguide
+                    ) AS first_term, DATE_ADD(
+                        MIN(term_start) OVER (
+                            PARTITION BY
+                                id_bioguide
+                        ), INTERVAL 10 YEAR
+                    ) AS first_plus_10
+                FROM legislators_terms
+            ) a
+            LEFT JOIN legislators_terms b ON a.id_bioguide = b.id_bioguide
+            AND b.term_start BETWEEN a.first_term AND a.first_plus_10
+        GROUP BY
+            CEILING(YEAR(a.first_term) / 100), a.first_type
+    ) aa
+GROUP BY
+    century
 ORDER BY century;
 
 ----------- Cross-section analysis, with a cohort lens ----------------------------------
-SELECT
-  b.date,
-  COUNT(DISTINCT a.id_bioguide) AS legislators
-FROM legislators_terms a
-JOIN date_dim b
-  ON b.date BETWEEN a.term_start AND a.term_end
- AND b.month_name = 'December'
- AND b.day_of_month = 31
- AND b.year <= 2019
-GROUP BY b.date
+SELECT b.date, COUNT(DISTINCT a.id_bioguide) AS legislators
+FROM
+    legislators_terms a
+    JOIN date_dim b ON b.date BETWEEN a.term_start AND a.term_end
+    AND b.month_name = 'December'
+    AND b.day_of_month = 31
+    AND b.year <= 2019
+GROUP BY
+    b.date
 ORDER BY b.date;
 
-SELECT
-  b.date,
-  CEILING(YEAR(c.first_term) / 100) AS century,
-  COUNT(DISTINCT a.id_bioguide) AS legislators
-FROM legislators_terms a
-JOIN date_dim b
-  ON b.date BETWEEN a.term_start AND a.term_end
- AND b.month_name = 'December'
- AND b.day_of_month = 31
- AND b.year <= 2019
-JOIN (
-  SELECT
-    id_bioguide,
-    MIN(term_start) AS first_term
-  FROM legislators_terms
-  GROUP BY id_bioguide
-) c
-  ON a.id_bioguide = c.id_bioguide
+SELECT b.date, CEILING(YEAR(c.first_term) / 100) AS century, COUNT(DISTINCT a.id_bioguide) AS legislators
+FROM
+    legislators_terms a
+    JOIN date_dim b ON b.date BETWEEN a.term_start AND a.term_end
+    AND b.month_name = 'December'
+    AND b.day_of_month = 31
+    AND b.year <= 2019
+    JOIN (
+        SELECT id_bioguide, MIN(term_start) AS first_term
+        FROM legislators_terms
+        GROUP BY
+            id_bioguide
+    ) c ON a.id_bioguide = c.id_bioguide
 GROUP BY
-  b.date,
-  CEILING(YEAR(c.first_term) / 100)
-ORDER BY
-  b.date,
-  century;
-
-SELECT
-  `date`,
-  century,
-  legislators,
-  SUM(legislators) OVER (PARTITION BY `date`) AS cohort,
-  legislators * 1.0 / SUM(legislators) OVER (PARTITION BY `date`) AS pct_century
-FROM (
-  SELECT
-    b.date AS `date`,
-    CEILING(YEAR(c.first_term) / 100) AS century,
-    COUNT(DISTINCT a.id_bioguide) AS legislators
-  FROM legislators_terms a
-  JOIN date_dim b
-    ON b.date BETWEEN a.term_start AND a.term_end
-   AND b.month_name = 'December'
-   AND b.day_of_month = 31
-   AND b.year <= 2019
-  JOIN (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    GROUP BY id_bioguide
-  ) c
-    ON a.id_bioguide = c.id_bioguide
-  GROUP BY
     b.date,
     CEILING(YEAR(c.first_term) / 100)
-) a
-ORDER BY
-  `date`,
-  century;
+ORDER BY b.date, century;
 
 SELECT
-  `date`,
-  COALESCE(SUM(CASE WHEN century = 18 THEN legislators END) * 100.0 / SUM(legislators), 0) AS pct_18,
-  COALESCE(SUM(CASE WHEN century = 19 THEN legislators END) * 100.0 / SUM(legislators), 0) AS pct_19,
-  COALESCE(SUM(CASE WHEN century = 20 THEN legislators END) * 100.0 / SUM(legislators), 0) AS pct_20,
-  COALESCE(SUM(CASE WHEN century = 21 THEN legislators END) * 100.0 / SUM(legislators), 0) AS pct_21
+    `date`,
+    century,
+    legislators,
+    SUM(legislators) OVER (
+        PARTITION BY
+            `date`
+    ) AS cohort,
+    legislators * 1.0 / SUM(legislators) OVER (
+        PARTITION BY
+            `date`
+    ) AS pct_century
 FROM (
-  SELECT
-    b.date AS `date`,
-    CEILING(YEAR(c.first_term) / 100) AS century,
-    COUNT(DISTINCT a.id_bioguide) AS legislators
-  FROM legislators_terms a
-  JOIN date_dim b
-    ON b.date BETWEEN a.term_start AND a.term_end
-   AND b.month_name = 'December'
-   AND b.day_of_month = 31
-   AND b.year <= 2019
-  JOIN (
-    SELECT
-      id_bioguide,
-      MIN(term_start) AS first_term
-    FROM legislators_terms
-    GROUP BY id_bioguide
-  ) c
-    ON a.id_bioguide = c.id_bioguide
-  GROUP BY
-    b.date,
-    CEILING(YEAR(c.first_term) / 100)
-) aa
-GROUP BY `date`
+        SELECT
+            b.date AS `date`, CEILING(YEAR(c.first_term) / 100) AS century, COUNT(DISTINCT a.id_bioguide) AS legislators
+        FROM
+            legislators_terms a
+            JOIN date_dim b ON b.date BETWEEN a.term_start AND a.term_end
+            AND b.month_name = 'December'
+            AND b.day_of_month = 31
+            AND b.year <= 2019
+            JOIN (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                GROUP BY
+                    id_bioguide
+            ) c ON a.id_bioguide = c.id_bioguide
+        GROUP BY
+            b.date, CEILING(YEAR(c.first_term) / 100)
+    ) a
+ORDER BY `date`, century;
+
+SELECT
+    `date`,
+    COALESCE(
+        SUM(
+            CASE
+                WHEN century = 18 THEN legislators
+            END
+        ) * 100.0 / SUM(legislators),
+        0
+    ) AS pct_18,
+    COALESCE(
+        SUM(
+            CASE
+                WHEN century = 19 THEN legislators
+            END
+        ) * 100.0 / SUM(legislators),
+        0
+    ) AS pct_19,
+    COALESCE(
+        SUM(
+            CASE
+                WHEN century = 20 THEN legislators
+            END
+        ) * 100.0 / SUM(legislators),
+        0
+    ) AS pct_20,
+    COALESCE(
+        SUM(
+            CASE
+                WHEN century = 21 THEN legislators
+            END
+        ) * 100.0 / SUM(legislators),
+        0
+    ) AS pct_21
+FROM (
+        SELECT
+            b.date AS `date`, CEILING(YEAR(c.first_term) / 100) AS century, COUNT(DISTINCT a.id_bioguide) AS legislators
+        FROM
+            legislators_terms a
+            JOIN date_dim b ON b.date BETWEEN a.term_start AND a.term_end
+            AND b.month_name = 'December'
+            AND b.day_of_month = 31
+            AND b.year <= 2019
+            JOIN (
+                SELECT id_bioguide, MIN(term_start) AS first_term
+                FROM legislators_terms
+                GROUP BY
+                    id_bioguide
+            ) c ON a.id_bioguide = c.id_bioguide
+        GROUP BY
+            b.date, CEILING(YEAR(c.first_term) / 100)
+    ) aa
+GROUP BY
+    `date`
 ORDER BY `date`;
 
 SELECT
-  id_bioguide,
-  `date`,
-  COUNT(*) OVER (
-    PARTITION BY id_bioguide
-    ORDER BY `date`
-    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-  ) AS cume_years
-FROM (
-  SELECT DISTINCT
-    lt.id_bioguide,
-    dd.date AS `date`
-  FROM legislators_terms lt
-  JOIN date_dim dd
-    ON dd.date BETWEEN lt.term_start AND lt.term_end
-   AND dd.month_name = 'December'
-   AND dd.day_of_month = 31
-   AND dd.year <= 2019
-) a
-ORDER BY
-  id_bioguide,
-  `date`;
-
-SELECT
-  `date`,
-  cume_years,
-  COUNT(DISTINCT id_bioguide) AS legislators
-FROM (
-  SELECT
     id_bioguide,
     `date`,
     COUNT(*) OVER (
-      PARTITION BY id_bioguide
-      ORDER BY `date`
-      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        PARTITION BY
+            id_bioguide
+        ORDER BY
+            `date` ROWS BETWEEN UNBOUNDED PRECEDING
+            AND CURRENT ROW
     ) AS cume_years
-  FROM (
-    SELECT DISTINCT
-      lt.id_bioguide,
-      dd.date AS `date`
-    FROM legislators_terms lt
-    JOIN date_dim dd
-      ON dd.date BETWEEN lt.term_start AND lt.term_end
-     AND dd.month_name = 'December'
-     AND dd.day_of_month = 31
-     AND dd.year <= 2019
-  ) aa
-) aaa
-GROUP BY
-  `date`,
-  cume_years
-ORDER BY
-  `date`,
-  cume_years;
+FROM (
+        SELECT DISTINCT
+            lt.id_bioguide, dd.date AS `date`
+        FROM
+            legislators_terms lt
+            JOIN date_dim dd ON dd.date BETWEEN lt.term_start AND lt.term_end
+            AND dd.month_name = 'December'
+            AND dd.day_of_month = 31
+            AND dd.year <= 2019
+    ) a
+ORDER BY id_bioguide, `date`;
 
 SELECT
-  `date`,
-  COUNT(*) AS tenures
-FROM (
-  SELECT
     `date`,
     cume_years,
     COUNT(DISTINCT id_bioguide) AS legislators
-  FROM (
-    SELECT
-      id_bioguide,
-      `date`,
-      COUNT(*) OVER (
-        PARTITION BY id_bioguide
-        ORDER BY `date`
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-      ) AS cume_years
-    FROM (
-      SELECT DISTINCT
-        lt.id_bioguide,
-        dd.date AS `date`
-      FROM legislators_terms lt
-      JOIN date_dim dd
-        ON dd.date BETWEEN lt.term_start AND lt.term_end
-       AND dd.month_name = 'December'
-       AND dd.day_of_month = 31
-       AND dd.year <= 2019
-    ) aa
-  ) aaa
-  GROUP BY
+FROM (
+        SELECT
+            id_bioguide, `date`, COUNT(*) OVER (
+                PARTITION BY
+                    id_bioguide
+                ORDER BY
+                    `date` ROWS BETWEEN UNBOUNDED PRECEDING
+                    AND CURRENT ROW
+            ) AS cume_years
+        FROM (
+                SELECT DISTINCT
+                    lt.id_bioguide, dd.date AS `date`
+                FROM
+                    legislators_terms lt
+                    JOIN date_dim dd ON dd.date BETWEEN lt.term_start AND lt.term_end
+                    AND dd.month_name = 'December'
+                    AND dd.day_of_month = 31
+                    AND dd.year <= 2019
+            ) aa
+    ) aaa
+GROUP BY
     `date`,
     cume_years
-) aaaa
+ORDER BY `date`, cume_years;
+
+SELECT `date`, COUNT(*) AS tenures
+FROM (
+        SELECT
+            `date`, cume_years, COUNT(DISTINCT id_bioguide) AS legislators
+        FROM (
+                SELECT
+                    id_bioguide, `date`, COUNT(*) OVER (
+                        PARTITION BY
+                            id_bioguide
+                        ORDER BY
+                            `date` ROWS BETWEEN UNBOUNDED PRECEDING
+                            AND CURRENT ROW
+                    ) AS cume_years
+                FROM (
+                        SELECT DISTINCT
+                            lt.id_bioguide, dd.date AS `date`
+                        FROM
+                            legislators_terms lt
+                            JOIN date_dim dd ON dd.date BETWEEN lt.term_start AND lt.term_end
+                            AND dd.month_name = 'December'
+                            AND dd.day_of_month = 31
+                            AND dd.year <= 2019
+                    ) aa
+            ) aaa
+        GROUP BY
+            `date`, cume_years
+    ) aaaa
 GROUP BY
-  `date`
-ORDER BY
-  `date`;
+    `date`
+ORDER BY `date`;
 
 SELECT
-  `date`,
-  tenure,
-  legislators * 100.0 / SUM(legislators) OVER (PARTITION BY `date`) AS pct_legislators
+    `date`,
+    tenure,
+    legislators * 100.0 / SUM(legislators) OVER (
+        PARTITION BY
+            `date`
+    ) AS pct_legislators
 FROM (
-  SELECT
-    `date`,
-    CASE
-      WHEN cume_years <= 4  THEN '1 to 4'
-      WHEN cume_years <= 10 THEN '5 to 10'
-      WHEN cume_years <= 20 THEN '11 to 20'
-      ELSE '21+'
-    END AS tenure,
-    COUNT(DISTINCT id_bioguide) AS legislators
-  FROM (
-    SELECT
-      id_bioguide,
-      `date`,
-      COUNT(*) OVER (
-        PARTITION BY id_bioguide
-        ORDER BY `date`
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-      ) AS cume_years
-    FROM (
-      SELECT DISTINCT
-        lt.id_bioguide,
-        dd.date AS `date`
-      FROM legislators_terms lt
-      JOIN date_dim dd
-        ON dd.date BETWEEN lt.term_start AND lt.term_end
-       AND dd.month_name = 'December'
-       AND dd.day_of_month = 31
-       AND dd.year <= 2019
-    ) a
-  ) aa
-  GROUP BY
-    `date`,
-    tenure
-) aaa
-ORDER BY
-  `date`,
-  tenure;
+        SELECT
+            `date`, CASE
+                WHEN cume_years <= 4 THEN '1 to 4'
+                WHEN cume_years <= 10 THEN '5 to 10'
+                WHEN cume_years <= 20 THEN '11 to 20'
+                ELSE '21+'
+            END AS tenure, COUNT(DISTINCT id_bioguide) AS legislators
+        FROM (
+                SELECT
+                    id_bioguide, `date`, COUNT(*) OVER (
+                        PARTITION BY
+                            id_bioguide
+                        ORDER BY
+                            `date` ROWS BETWEEN UNBOUNDED PRECEDING
+                            AND CURRENT ROW
+                    ) AS cume_years
+                FROM (
+                        SELECT DISTINCT
+                            lt.id_bioguide, dd.date AS `date`
+                        FROM
+                            legislators_terms lt
+                            JOIN date_dim dd ON dd.date BETWEEN lt.term_start AND lt.term_end
+                            AND dd.month_name = 'December'
+                            AND dd.day_of_month = 31
+                            AND dd.year <= 2019
+                    ) a
+            ) aa
+        GROUP BY
+            `date`, tenure
+    ) aaa
+ORDER BY `date`, tenure;
