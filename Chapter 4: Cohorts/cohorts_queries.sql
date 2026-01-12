@@ -1,5 +1,6 @@
+-- Active: 1767840625700@@127.0.0.1@3306@sql_for_data_analysis
 -- Basic retention
-SELECT id_bioguide, min(term_start) as first_term
+SELECT id_bioguide, MIN(term_start) AS first_term
 FROM legislators_terms
 GROUP BY
     1;
@@ -15,182 +16,196 @@ FROM (
     ) AS a
     JOIN legislators_terms AS b ON a.id_bioguide = b.id_bioguide
 GROUP BY
-    TIMESTAMPDIFF(
-        YEAR,
-        a.first_term,
-        b.term_start
-    )
+    1
 ORDER BY periods;
 
 SELECT
     period,
-    first_value(cohort_retained) over (
-        order by period
-    ) as cohort_size,
+    FIRST_VALUE(cohort_retained) OVER (
+        ORDER BY period
+    ) AS cohort_size,
     cohort_retained,
-    cohort_retained * 1.0 / first_value(cohort_retained) over (
-        order by period
-    ) as pct_retained
+    cohort_retained * 1.0 / FIRST_VALUE(cohort_retained) OVER (
+        ORDER BY period
+    ) AS pct_retained
 FROM (
-        SELECT
-            date_part (
-                'year', age (b.term_start, a.first_term)
-            ) as period, count(distinct a.id_bioguide) as cohort_retained
+        SELECT TIMESTAMPDIFF(
+                YEAR, a.first_term, b.term_start
+            ) AS period, COUNT(DISTINCT a.id_bioguide) AS cohort_retained
         FROM (
-                SELECT id_bioguide, min(term_start) as first_term
+                SELECT id_bioguide, MIN(term_start) AS first_term
                 FROM legislators_terms
                 GROUP BY
-                    1
+                    id_bioguide
             ) a
-            JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
+            JOIN legislators_terms b ON a.id_bioguide = b.id_bioguide
         GROUP BY
-            1
-    ) aa;
+            TIMESTAMPDIFF(
+                YEAR, a.first_term, b.term_start
+            )
+    ) aa
+ORDER BY period
 
 SELECT
-    cohort_size,
-    max(
-        case
-            when period = 0 then pct_retained
-        end
-    ) as yr0,
-    max(
-        case
-            when period = 1 then pct_retained
-        end
-    ) as yr1,
-    max(
-        case
-            when period = 2 then pct_retained
-        end
-    ) as yr2,
-    max(
-        case
-            when period = 3 then pct_retained
-        end
-    ) as yr3,
-    max(
-        case
-            when period = 4 then pct_retained
-        end
-    ) as yr4
+  cohort_size,
+  MAX(CASE WHEN period = 0 THEN pct_retained END) AS yr0,
+  MAX(CASE WHEN period = 1 THEN pct_retained END) AS yr1,
+  MAX(CASE WHEN period = 2 THEN pct_retained END) AS yr2,
+  MAX(CASE WHEN period = 3 THEN pct_retained END) AS yr3,
+  MAX(CASE WHEN period = 4 THEN pct_retained END) AS yr4
 FROM (
-        SELECT
-            period, first_value(cohort_retained) over (
-                order by period
-            ) as cohort_size, cohort_retained, cohort_retained * 1.0 / first_value(cohort_retained) over (
-                order by period
-            ) as pct_retained
-        FROM (
-                SELECT
-                    date_part (
-                        'year', age (b.term_start, a.first_term)
-                    ) as period, count(*) as cohort_retained
-                FROM (
-                        SELECT id_bioguide, min(term_start) as first_term
-                        FROM legislators_terms
-                        GROUP BY
-                            1
-                    ) a
-                    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
-                GROUP BY
-                    1
-            ) aa
-    ) aaa
-GROUP BY
-    1;
+  SELECT
+    period,
+    FIRST_VALUE(cohort_retained) OVER (ORDER BY period) AS cohort_size,
+    cohort_retained,
+    cohort_retained * 1.0
+      / FIRST_VALUE(cohort_retained) OVER (ORDER BY period) AS pct_retained
+  FROM (
+    SELECT
+      TIMESTAMPDIFF(YEAR, a.first_term, b.term_start) AS period,
+      COUNT(DISTINCT a.id_bioguide) AS cohort_retained
+    FROM (
+      SELECT
+        id_bioguide,
+        MIN(term_start) AS first_term
+      FROM legislators_terms
+      GROUP BY id_bioguide
+    ) a
+    JOIN legislators_terms b
+      ON a.id_bioguide = b.id_bioguide
+    GROUP BY
+      TIMESTAMPDIFF(YEAR, a.first_term, b.term_start)
+  ) aa
+) aaa
+GROUP BY cohort_size;
 
 -- Time adjustments
-SELECT a.id_bioguide, a.first_term, b.term_start, b.term_end, c.date, date_part (
-        'year', age (c.date, a.first_term)
-    ) as period
+SELECT
+  a.id_bioguide,
+  a.first_term,
+  b.term_start,
+  b.term_end,
+  c.date,
+  TIMESTAMPDIFF(YEAR, a.first_term, c.date) AS period
 FROM (
-        SELECT id_bioguide, min(term_start) as first_term
-        FROM legislators_terms
-        GROUP BY
-            1
-    ) a
-    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
-    LEFT JOIN date_dim c on c.date between b.term_start and b.term_end
-    and c.month_name = 'December'
-    and c.day_of_month = 31;
+  SELECT
+    id_bioguide,
+    MIN(term_start) AS first_term
+  FROM legislators_terms
+  GROUP BY id_bioguide
+) a
+JOIN legislators_terms b
+  ON a.id_bioguide = b.id_bioguide
+LEFT JOIN date_dim c
+  ON c.date BETWEEN b.term_start AND b.term_end
+ AND c.month_name = 'December'
+ AND c.day_of_month = 31;
 
-SELECT coalesce(
-        date_part (
-            'year', age (c.date, a.first_term)
-        ), 0
-    ) as period, count(distinct a.id_bioguide) as cohort_retained
+SELECT
+  COALESCE(
+    TIMESTAMPDIFF(YEAR, a.first_term, c.date),
+    0
+  ) AS period,
+  COUNT(DISTINCT a.id_bioguide) AS cohort_retained
 FROM (
-        SELECT id_bioguide, min(term_start) as first_term
-        FROM legislators_terms
-        GROUP BY
-            1
-    ) a
-    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
-    LEFT JOIN date_dim c on c.date between b.term_start and b.term_end
-    and c.month_name = 'December'
-    and c.day_of_month = 31
+  SELECT
+    id_bioguide,
+    MIN(term_start) AS first_term
+  FROM legislators_terms
+  GROUP BY id_bioguide
+) a
+JOIN legislators_terms b
+  ON a.id_bioguide = b.id_bioguide
+LEFT JOIN date_dim c
+  ON c.date BETWEEN b.term_start AND b.term_end
+ AND c.month_name = 'December'
+ AND c.day_of_month = 31
 GROUP BY
-    1;
+  COALESCE(
+    TIMESTAMPDIFF(YEAR, a.first_term, c.date),
+    0
+  );
 
 SELECT
-    period,
-    first_value(cohort_retained) over (
-        order by period
-    ) as cohort_size,
-    cohort_retained,
-    cohort_retained * 1.0 / first_value(cohort_retained) over (
-        order by period
-    ) as pct_retained
+  period,
+  FIRST_VALUE(cohort_retained) OVER (
+    ORDER BY period
+  ) AS cohort_size,
+  cohort_retained,
+  cohort_retained * 1.0
+    / FIRST_VALUE(cohort_retained) OVER (
+        ORDER BY period
+      ) AS pct_retained
 FROM (
-        SELECT coalesce(
-                date_part (
-                    'year', age (c.date, a.first_term)
-                ), 0
-            ) as period, count(distinct a.id_bioguide) as cohort_retained
-        FROM (
-                SELECT id_bioguide, min(term_start) as first_term
-                FROM legislators_terms
-                GROUP BY
-                    1
-            ) a
-            JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
-            LEFT JOIN date_dim c on c.date between b.term_start and b.term_end
-            and c.month_name = 'December'
-            and c.day_of_month = 31
-        GROUP BY
-            1
-    ) aa;
+  SELECT
+    COALESCE(
+      TIMESTAMPDIFF(YEAR, a.first_term, c.date),
+      0
+    ) AS period,
+    COUNT(DISTINCT a.id_bioguide) AS cohort_retained
+  FROM (
+    SELECT
+      id_bioguide,
+      MIN(term_start) AS first_term
+    FROM legislators_terms
+    GROUP BY id_bioguide
+  ) a
+  JOIN legislators_terms b
+    ON a.id_bioguide = b.id_bioguide
+  LEFT JOIN date_dim c
+    ON c.date BETWEEN b.term_start AND b.term_end
+   AND c.month_name = 'December'
+   AND c.day_of_month = 31
+  GROUP BY
+    COALESCE(
+      TIMESTAMPDIFF(YEAR, a.first_term, c.date),
+      0
+    )
+) aa
+ORDER BY period;
 
 SELECT
-    a.id_bioguide,
-    a.first_term,
-    b.term_start,
-    case
-        when b.term_type = 'rep' then b.term_start + interval '2 years'
-        when b.term_type = 'sen' then b.term_start + interval '6 years'
-    end as term_end
+  a.id_bioguide,
+  a.first_term,
+  b.term_start,
+  CASE
+    WHEN b.term_type = 'rep' THEN DATE_ADD(b.term_start, INTERVAL 2 YEAR)
+    WHEN b.term_type = 'sen' THEN DATE_ADD(b.term_start, INTERVAL 6 YEAR)
+    ELSE NULL
+  END AS term_end
 FROM (
-        SELECT id_bioguide, min(term_start) as first_term
-        FROM legislators_terms
-        GROUP BY
-            1
-    ) a
-    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide;
+  SELECT
+    id_bioguide,
+    MIN(term_start) AS first_term
+  FROM legislators_terms
+  GROUP BY id_bioguide
+) a
+JOIN legislators_terms b
+  ON a.id_bioguide = b.id_bioguide;
 
-SELECT a.id_bioguide, a.first_term, b.term_start, lead(b.term_start) over (
-        partition by
-            a.id_bioguide
-        order by b.term_start
-    ) - interval '1 day' as term_end
+SELECT
+  a.id_bioguide,
+  a.first_term,
+  b.term_start,
+  DATE_SUB(
+    LEAD(b.term_start) OVER (
+      PARTITION BY a.id_bioguide
+      ORDER BY b.term_start
+    ),
+    INTERVAL 1 DAY
+  ) AS term_end
 FROM (
-        SELECT id_bioguide, min(term_start) as first_term
-        FROM legislators_terms
-        GROUP BY
-            1
-    ) a
-    JOIN legislators_terms b on a.id_bioguide = b.id_bioguide
-ORDER BY 1, 3;
+  SELECT
+    id_bioguide,
+    MIN(term_start) AS first_term
+  FROM legislators_terms
+  GROUP BY id_bioguide
+) a
+JOIN legislators_terms b
+  ON a.id_bioguide = b.id_bioguide
+ORDER BY
+  a.id_bioguide,
+  b.term_start;
 
 -- Time-based cohorts derived from the time-series
 
